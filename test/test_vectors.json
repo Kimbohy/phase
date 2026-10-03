@@ -1,0 +1,102 @@
+{
+  "plannings": {
+    "semaine": {
+      "v": 1,
+      "name": "Semaine test",
+      "blocks": [
+        { "id": "reveil", "d": [1, 2, 3, 4, 5], "s": 420, "e": 465, "n": "Réveil" },
+        { "id": "deep1", "d": [1, 2, 3, 4, 5], "s": 495, "e": 600, "n": "Deep Work 1", "p": [25, 5] },
+        { "id": "menage", "d": [1, 2, 3, 4, 5], "s": 600, "e": 615, "n": "Ménage" },
+        { "id": "sommeil", "d": [5], "s": 1350, "e": 420, "n": "Sommeil" }
+      ]
+    },
+    "pomo60": {
+      "v": 1,
+      "name": "Pomodoro 60",
+      "blocks": [
+        { "id": "f60", "d": [1], "s": 540, "e": 600, "n": "Focus 60", "p": [25, 5] }
+      ]
+    },
+    "vide": { "v": 1, "name": "Vide", "blocks": [] }
+  },
+  "cases": [
+    {
+      "name": "Lundi 07:10 - Réveil",
+      "planning": "semaine",
+      "now": "2026-10-05T07:10:00",
+      "expected": { "kind": "block", "title": "Réveil", "sub": null, "next": "Deep Work 1" }
+    },
+    {
+      "name": "Lundi 07:45 pile - fin de Réveil, donc libre",
+      "planning": "semaine",
+      "now": "2026-10-05T07:45:00",
+      "expected": { "kind": "free", "title": null, "sub": null, "next": "Deep Work 1" }
+    },
+    {
+      "name": "Lundi 08:15 pile - début de Deep Work",
+      "planning": "semaine",
+      "now": "2026-10-05T08:15:00",
+      "expected": { "kind": "block", "title": "Deep Work 1", "sub": "focus 1/4", "next": "Ménage" }
+    },
+    {
+      "name": "Lundi 08:40 - première pause",
+      "planning": "semaine",
+      "now": "2026-10-05T08:40:00",
+      "expected": { "kind": "block", "title": "Deep Work 1", "sub": "pause 1/4", "next": "Ménage" }
+    },
+    {
+      "name": "Lundi 09:15 - troisième focus",
+      "planning": "semaine",
+      "now": "2026-10-05T09:15:00",
+      "expected": { "kind": "block", "title": "Deep Work 1", "sub": "focus 3/4", "next": "Ménage" }
+    },
+    {
+      "name": "Lundi 09:50 - dernier focus",
+      "planning": "semaine",
+      "now": "2026-10-05T09:50:00",
+      "expected": { "kind": "block", "title": "Deep Work 1", "sub": "focus 4/4", "next": "Ménage" }
+    },
+    {
+      "name": "Lundi 10:00 pile - Ménage, suivant = mardi",
+      "planning": "semaine",
+      "now": "2026-10-05T10:00:00",
+      "expected": { "kind": "block", "title": "Ménage", "sub": null, "next": "Réveil" }
+    },
+    {
+      "name": "Vendredi 23:30 - bloc qui passe minuit",
+      "planning": "semaine",
+      "now": "2026-10-09T23:30:00",
+      "expected": { "kind": "block", "title": "Sommeil", "sub": null, "next": "Réveil" }
+    },
+    {
+      "name": "Samedi 06:00 - suite du bloc de la veille",
+      "planning": "semaine",
+      "now": "2026-10-10T06:00:00",
+      "expected": { "kind": "block", "title": "Sommeil", "sub": null, "next": "Réveil" }
+    },
+    {
+      "name": "Samedi 12:00 - libre, suivant = lundi",
+      "planning": "semaine",
+      "now": "2026-10-10T12:00:00",
+      "expected": { "kind": "free", "title": null, "sub": null, "next": "Réveil" }
+    },
+    {
+      "name": "Planning vide",
+      "planning": "vide",
+      "now": "2026-10-05T12:00:00",
+      "expected": { "kind": "empty", "title": null, "sub": null, "next": null }
+    },
+    {
+      "name": "Bloc de 60 min en 25/5 - pause",
+      "planning": "pomo60",
+      "now": "2026-10-05T09:27:00",
+      "expected": { "kind": "block", "title": "Focus 60", "sub": "pause 1/2", "next": "Focus 60" }
+    },
+    {
+      "name": "Bloc de 60 min en 25/5 - le dernier focus absorbe la fin",
+      "planning": "pomo60",
+      "now": "2026-10-05T09:59:00",
+      "expected": { "kind": "block", "title": "Focus 60", "sub": "focus 2/2", "next": "Focus 60" }
+    }
+  ]
+}
