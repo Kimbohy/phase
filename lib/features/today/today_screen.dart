@@ -59,6 +59,15 @@ class _PhaseCard extends StatelessWidget {
               const SizedBox(height: 8),
               if (end != null)
                 Text('Il reste ${formatDuration(end.difference(now))}'),
+              if (state.sub != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  state.sub!.label(now),
+                  style: textTheme.titleSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
             ],
             const SizedBox(height: 8),
             Text(
