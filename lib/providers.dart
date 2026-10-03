@@ -8,6 +8,7 @@ import 'core/models/alarm_setting.dart';
 import 'core/models/planning.dart';
 import 'core/storage/alarm_repository.dart';
 import 'core/storage/planning_repository.dart';
+import 'core/models/block.dart';
 import 'services/alarm_service.dart';
 import 'services/widget_sync.dart';
 
@@ -40,6 +41,10 @@ class PlanningNotifier extends Notifier<Planning> {
     // Retire les alarmes des blocs disparus et replanifie le reste.
     await ref.read(alarmsProvider.notifier).syncWithPlanning(planning);
   }
+
+  Future<void> upsertBlock(Block block) => setPlanning(state.withBlock(block));
+
+  Future<void> deleteBlock(String id) => setPlanning(state.withoutBlock(id));
 }
 
 final planningProvider = NotifierProvider<PlanningNotifier, Planning>(

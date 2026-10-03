@@ -6,6 +6,7 @@ import '../../core/utils/labels.dart';
 import '../../core/utils/time_utils.dart';
 import '../../providers.dart';
 import 'block_tile.dart';
+import '../settings/settings_screen.dart';
 
 class TodayScreen extends ConsumerWidget {
   const TodayScreen({super.key});
@@ -18,7 +19,18 @@ class TodayScreen extends ConsumerWidget {
     final todayBlocks = planning.blocksForDay(now.weekday);
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Aujourd'hui")),
+      appBar: AppBar(
+        title: const Text("Aujourd'hui"),
+        actions: [
+          IconButton(
+            tooltip: 'Réglages',
+            icon: const Icon(Icons.settings),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+            ),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
