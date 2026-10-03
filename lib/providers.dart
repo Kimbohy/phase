@@ -6,6 +6,8 @@ import 'core/engine/planning_engine.dart';
 import 'core/models/planning.dart';
 import 'core/storage/planning_repository.dart';
 
+import 'services/widget_sync.dart';
+
 /// Fourni au démarrage dans main.dart (voir `overrides`).
 final sharedPreferencesProvider = Provider<SharedPreferences>(
   (ref) => throw UnimplementedError('À fournir dans main.dart'),
@@ -21,8 +23,9 @@ class PlanningNotifier extends Notifier<Planning> {
   Planning build() => ref.watch(planningRepositoryProvider).load();
 
   Future<void> setPlanning(Planning planning) async {
-    state = planning; // met à jour l'écran immédiatement
+    state = planning;
     await ref.read(planningRepositoryProvider).save(planning);
+    await WidgetSync.push(planning); // met à jour le widget
   }
 }
 
