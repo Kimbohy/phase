@@ -62,6 +62,26 @@ class SettingsScreen extends ConsumerWidget {
               }
             },
           ),
+          ListTile(
+            leading: const Icon(Icons.view_stream),
+            title: const Text("Ajouter le widget compact"),
+            subtitle: const Text('Moitié de hauteur (4x1)'),
+            onTap: () async {
+              final supported =
+                  await HomeWidget.isRequestPinWidgetSupported() ?? false;
+              if (!context.mounted) return;
+              if (supported) {
+                await HomeWidget.requestPinWidget(
+                  androidName: 'PlanningWidgetSmallProvider',
+                );
+              } else {
+                _message(
+                  context,
+                  "Appui long sur l'écran d'accueil → Widgets → Phase compact.",
+                );
+              }
+            },
+          ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.upload),

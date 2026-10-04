@@ -26,6 +26,12 @@ object WidgetScheduler {
         )
     }
 
+    /** Annule l'alarme programmée (quand plus aucun widget n'est posé). */
+    fun cancel(context: Context) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        alarmManager.cancel(pendingIntent(context))
+    }
+
     fun scheduleNext(context: Context, state: WidgetState, now: LocalDateTime) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val pending = pendingIntent(context)

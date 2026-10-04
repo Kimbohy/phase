@@ -5,8 +5,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import es.antonborri.home_widget.HomeWidgetProvider
 
-/** Grand widget (4x2). Tout le dessin est dans WidgetRenderer. */
-class PlanningWidgetProvider : HomeWidgetProvider() {
+/** Widget compact (4x1). */
+class PlanningWidgetSmallProvider : HomeWidgetProvider() {
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,

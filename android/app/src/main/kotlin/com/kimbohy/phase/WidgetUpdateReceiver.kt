@@ -11,6 +11,6 @@ import android.content.Intent
  */
 class WidgetUpdateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        PlanningWidgetProvider.updateAll(context)
+        WidgetRenderer.updateAll(context)
     }
 }
