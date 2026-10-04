@@ -5,10 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'core/engine/phase_state.dart';
 import 'core/engine/planning_engine.dart';
 import 'core/models/alarm_setting.dart';
+import 'core/models/block.dart';
 import 'core/models/planning.dart';
+import 'core/parser/planning_exporter.dart';
 import 'core/storage/alarm_repository.dart';
 import 'core/storage/planning_repository.dart';
-import 'core/models/block.dart';
 import 'services/alarm_service.dart';
 import 'services/widget_sync.dart';
 
@@ -34,7 +35,8 @@ class PlanningNotifier extends Notifier<Planning> {
   @override
   Planning build() => ref.watch(planningRepositoryProvider).load();
 
-  Future<void> setPlanning(Planning planning) async {
+  /// Applique un planning : mémoire, stockage, widget, alarmes.
+  Future<void> _apply(Planning planning) async {
     state = planning;
     await ref.read(planningRepositoryProvider).save(planning);
     await WidgetSync.push(planning);
@@ -42,13 +44,63 @@ class PlanningNotifier extends Notifier<Planning> {
     await ref.read(alarmsProvider.notifier).syncWithPlanning(planning);
   }
 
-  Future<void> upsertBlock(Block block) => setPlanning(state.withBlock(block));
+  /// Import depuis le texte : remplace TOUT le planning.
+  /// [rawText] est le texte tel que tu l'as tapé : il est conservé tel quel.
+  Future<void> importPlanning(Planning planning, String rawText) async {
+    // Les alarmes des blocs « identiques » suivent leur nouvel identifiant.
+    ref.read(alarmsProvider.notifier).carryOver(state, planning);
+    await _apply(planning);
+    await ref.read(importTextProvider.notifier).setText(rawText);
+  }
 
-  Future<void> deleteBlock(String id) => setPlanning(state.withoutBlock(id));
+  /// Ajout ou modification d'un bloc depuis l'interface.
+  Future<void> upsertBlock(Block block) async {
+    final updated = state.withBlock(block);
+    await _apply(updated);
+    await ref.read(importTextProvider.notifier).regenerateFrom(updated);
+  }
+
+  Future<void> deleteBlock(String id) async {
+    final updated = state.withoutBlock(id);
+    await _apply(updated);
+    await ref.read(importTextProvider.notifier).regenerateFrom(updated);
+  }
 }
 
 final planningProvider = NotifierProvider<PlanningNotifier, Planning>(
   PlanningNotifier.new,
+);
+
+/// Le texte de l'écran Import : un brouillon sauvegardé dans le téléphone.
+class ImportTextNotifier extends Notifier<String> {
+  static const _key = 'import_text';
+
+  @override
+  String build() {
+    final saved = ref.watch(sharedPreferencesProvider).getString(_key);
+    if (saved != null) return saved;
+
+    // Première fois (ou mise à jour de l'app) : le texte reflète le planning actuel.
+    final planning = ref.read(planningProvider);
+    return planning.blocks.isEmpty
+        ? ''
+        : const PlanningExporter().export(planning);
+  }
+
+  Future<void> setText(String text) async {
+    state = text;
+    await ref.read(sharedPreferencesProvider).setString(_key, text);
+  }
+
+  /// Après une modification depuis l'interface : le texte redevient
+  /// le reflet exact du planning.
+  Future<void> regenerateFrom(Planning planning) {
+    return setText(const PlanningExporter().export(planning));
+  }
+}
+
+final importTextProvider = NotifierProvider<ImportTextNotifier, String>(
+  ImportTextNotifier.new,
 );
 
 /// Les alarmes : blocId -> réglage.
@@ -69,6 +121,30 @@ class AlarmsNotifier extends Notifier<Map<String, AlarmSetting>> {
         if (ids.contains(entry.key)) entry.key: entry.value,
     };
     await _persistAndReschedule();
+  }
+
+  /// Après un import : une alarme est conservée si le nouveau planning contient
+  /// un bloc identique (même nom, même début, mêmes jours) à l'ancien.
+  /// Elle est alors rattachée au nouvel identifiant du bloc.
+  void carryOver(Planning from, Planning to) {
+    String signature(Block b) =>
+        '${b.name}|${b.startMin}|${(b.days.toList()..sort()).join()}';
+
+    final oldIdBySignature = {for (final b in from.blocks) signature(b): b.id};
+    final migrated = <String, AlarmSetting>{};
+
+    for (final block in to.blocks) {
+      final oldId = oldIdBySignature[signature(block)];
+      final setting = oldId == null ? null : state[oldId];
+      if (setting != null) {
+        migrated[block.id] = AlarmSetting(
+          blockId: block.id,
+          enabled: setting.enabled,
+          offsetMin: setting.offsetMin,
+        );
+      }
+    }
+    state = migrated;
   }
 
   /// À appeler au démarrage de l'app.

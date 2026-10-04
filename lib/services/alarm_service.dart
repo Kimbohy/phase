@@ -105,8 +105,9 @@ class AlarmService {
         minuteOfDay ~/ 60,
         minuteOfDay % 60,
       );
-      if (candidate.weekday == weekday && candidate.isAfter(now))
+      if (candidate.weekday == weekday && candidate.isAfter(now)) {
         return candidate;
+      }
     }
     // Ne devrait jamais arriver ; par sécurité, dans une semaine.
     return now.add(const Duration(days: 7));

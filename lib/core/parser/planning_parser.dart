@@ -258,8 +258,9 @@ class PlanningParser {
 
       for (var i = 0; i < list.length; i++) {
         for (var j = i + 1; j < list.length; j++) {
-          if (list[j].start >= list[i].end)
+          if (list[j].start >= list[i].end) {
             break; // triés : plus aucun chevauchement
+          }
           if (identical(list[i].block, list[j].block)) continue;
 
           final a = list[i].block;
