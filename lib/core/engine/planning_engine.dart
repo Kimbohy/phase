@@ -69,6 +69,43 @@ class PlanningEngine {
     );
   }
 
+  /// Les blocs ET les intervalles libres de la journée de [now], dans l'ordre.
+  /// Les lignes couvrent la journée entière : de 00:00 à 24:00, sans trou.
+  List<TimelineEntry> dayTimeline(Planning planning, DateTime now) {
+    final dayStart = DateTime(now.year, now.month, now.day);
+    final dayEnd = DateTime(now.year, now.month, now.day + 1);
+
+    // Les occurrences qui touchent cette journée, rognées aux bornes de la journée
+    // (un bloc qui passe minuit est coupé en deux : la fin d'hier, le début d'aujourd'hui).
+    final entries = <TimelineEntry>[];
+    for (final o in _occurrences(planning, now)) {
+      if (!o.end.isAfter(dayStart) || !o.start.isBefore(dayEnd)) continue;
+      entries.add(
+        TimelineEntry(
+          start: o.start.isBefore(dayStart) ? dayStart : o.start,
+          end: o.end.isAfter(dayEnd) ? dayEnd : o.end,
+          block: o.block,
+        ),
+      );
+    }
+    entries.sort((a, b) => a.start.compareTo(b.start));
+
+    // On intercale les intervalles libres dans les trous.
+    final result = <TimelineEntry>[];
+    var cursor = dayStart;
+    for (final e in entries) {
+      if (e.start.isAfter(cursor)) {
+        result.add(TimelineEntry(start: cursor, end: e.start));
+      }
+      result.add(e);
+      if (e.end.isAfter(cursor)) cursor = e.end;
+    }
+    if (cursor.isBefore(dayEnd)) {
+      result.add(TimelineEntry(start: cursor, end: dayEnd));
+    }
+    return result;
+  }
+
   /// Toutes les occurrences d'hier à dans 7 jours, triées par début.
   /// Hier est inclus pour les blocs qui passent minuit.
   List<Occurrence> _occurrences(Planning planning, DateTime now) {

@@ -66,3 +66,24 @@ class PhaseState {
     PhaseKind.empty => 'Aucun planning',
   };
 }
+
+/// Une ligne de la timeline du jour : un bloc, ou un intervalle libre (block == null).
+class TimelineEntry {
+  const TimelineEntry({required this.start, required this.end, this.block});
+
+  final DateTime start;
+  final DateTime end;
+  final Block? block;
+
+  bool get isFree => block == null;
+
+  /// Début inclus, fin exclue (même règle que le moteur).
+  bool isCurrent(DateTime now) => !start.isAfter(now) && end.isAfter(now);
+
+  /// Avancement dans cette ligne, de 0.0 à 1.0.
+  double progress(DateTime now) {
+    final total = end.difference(start).inMilliseconds;
+    if (total <= 0) return 0;
+    return (now.difference(start).inMilliseconds / total).clamp(0.0, 1.0);
+  }
+}
