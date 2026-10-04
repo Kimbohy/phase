@@ -1,27 +1,139 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/engine/phase_state.dart';
+import '../../core/engine/planning_engine.dart';
 import '../../core/utils/labels.dart';
 import '../../core/utils/time_utils.dart';
 import '../../providers.dart';
-import 'block_tile.dart';
 import '../settings/settings_screen.dart';
+import 'block_tile.dart';
+import 'free_tile.dart';
 
-class TodayScreen extends ConsumerWidget {
+/// Au plus 3 lignes sont visibles AVANT la ligne active : elle est donc
+/// au maximum en 4e position quand on ouvre l'écran.
+const _maxRowsBeforeCurrent = 3;
+
+class TodayScreen extends ConsumerStatefulWidget {
   const TodayScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TodayScreen> createState() => _TodayScreenState();
+}
+
+class _TodayScreenState extends ConsumerState<TodayScreen> {
+  final _scroll = ScrollController();
+
+  /// Une clé par ligne (identifiée par son heure de début) pour retrouver
+  /// sa position à l'écran. Les clés doivent survivre aux reconstructions
+  /// (l'écran est reconstruit chaque seconde), d'où ce dictionnaire.
+  final _keys = <int, GlobalKey>{};
+
+  @override
+  void initState() {
+    super.initState();
+    // Après le premier affichage : on place l'étape active.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _scrollToCurrent(animate: false),
+    );
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  GlobalKey _keyFor(TimelineEntry entry) =>
+      _keys.putIfAbsent(entry.start.millisecondsSinceEpoch, () => GlobalKey());
+
+  /// Une ligne est « active » si l'heure est dedans ET si c'est bien la phase du moteur.
+  bool _isCurrentEntry(TimelineEntry entry, PhaseState state, DateTime now) {
+    if (!entry.isCurrent(now)) return false;
+    return entry.isFree
+        ? state.kind == PhaseKind.free
+        : entry.block!.id == state.blockId;
+  }
+
+  void _scrollToCurrent({required bool animate}) {
+    if (!_scroll.hasClients) return;
+
+    final now = DateTime.now();
+    final state = ref.read(phaseProvider);
+    final timeline = const PlanningEngine().dayTimeline(
+      ref.read(planningProvider),
+      now,
+    );
+    final current = timeline.indexWhere((e) => _isCurrentEntry(e, state, now));
+    if (current < 0) return;
+
+    // L'étape active est dans les premières lignes : on affiche le haut de l'écran.
+    if (current <= _maxRowsBeforeCurrent) {
+      if (animate) {
+        unawaited(
+          _scroll.animateTo(
+            0,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          ),
+        );
+      } else {
+        _scroll.jumpTo(0);
+      }
+      return;
+    }
+
+    // Sinon : on place en haut la ligne située 3 lignes avant l'active.
+    final anchor = timeline[current - _maxRowsBeforeCurrent];
+    final target = _keys[anchor.start.millisecondsSinceEpoch]?.currentContext;
+    if (target == null) return;
+    unawaited(
+      Scrollable.ensureVisible(
+        target,
+        alignment: 0,
+        duration: animate ? const Duration(milliseconds: 300) : Duration.zero,
+        curve: Curves.easeOut,
+      ),
+    );
+  }
+
+  Widget _row(TimelineEntry entry, PhaseState state, DateTime now) {
+    final isCurrent = _isCurrentEntry(entry, state, now);
+    final tile = entry.isFree
+        ? FreeTile(
+            start: entry.start,
+            end: entry.end,
+            isCurrent: isCurrent,
+            progress: entry.progress(now),
+            now: now,
+          )
+        : BlockTile(block: entry.block!, isCurrent: isCurrent);
+
+    return KeyedSubtree(
+      key: _keyFor(entry),
+      // Les lignes passées sont atténuées : on voit d'un coup d'œil où on en est.
+      child: Opacity(opacity: entry.end.isAfter(now) ? 1 : 0.5, child: tile),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final planning = ref.watch(planningProvider);
     final state = ref.watch(phaseProvider);
     final now = ref.watch(clockProvider).value ?? DateTime.now();
-    final todayBlocks = planning.blocksForDay(now.weekday);
+    final timeline = const PlanningEngine().dayTimeline(planning, now);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text("Aujourd'hui"),
         actions: [
+          IconButton(
+            tooltip: 'Aller à maintenant',
+            icon: const Icon(Icons.my_location),
+            onPressed: () => _scrollToCurrent(animate: true),
+          ),
           IconButton(
             tooltip: 'Réglages',
             icon: const Icon(Icons.settings),
@@ -31,17 +143,25 @@ class TodayScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: ListView(
+      // Une colonne dans un SingleChildScrollView : toutes les lignes existent,
+      // donc on peut toujours retrouver la position d'une ligne (ce que ne permet
+      // pas un ListView qui ne construit que les lignes visibles).
+      body: SingleChildScrollView(
+        controller: _scroll,
         padding: const EdgeInsets.all(16),
-        children: [
-          _PhaseCard(state: state, now: now),
-          const SizedBox(height: 24),
-          Text('Blocs du jour', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          if (todayBlocks.isEmpty) const Text('Aucun bloc aujourd\'hui.'),
-          for (final block in todayBlocks)
-            BlockTile(block: block, isCurrent: state.blockId == block.id),
-        ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _PhaseCard(state: state, now: now),
+            const SizedBox(height: 24),
+            Text('Ma journée', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            if (planning.blocks.isEmpty)
+              const Text('Aucun bloc. Importe un planning ou crée un bloc.')
+            else
+              for (final entry in timeline) _row(entry, state, now),
+          ],
+        ),
       ),
     );
   }
