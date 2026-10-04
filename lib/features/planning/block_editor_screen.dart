@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/models/alarm_setting.dart';
 import '../../core/models/block.dart';
 import '../../core/models/pomodoro.dart';
 import '../../core/utils/time_utils.dart';
@@ -21,10 +22,14 @@ class _BlockEditorScreenState extends ConsumerState<BlockEditorScreen> {
   late final TextEditingController _name;
   late final TextEditingController _focus;
   late final TextEditingController _break;
+  late final String _newId;
+  late final AlarmSetting? _existingAlarm;
   late Set<int> _days;
   late int _start;
   late int _end;
   late bool _pomodoro;
+  late bool _alarmEnabled;
+  late int _alarmOffset;
   String? _error;
 
   @override
@@ -34,6 +39,7 @@ class _BlockEditorScreenState extends ConsumerState<BlockEditorScreen> {
     _name = TextEditingController(text: b?.name ?? '');
     _focus = TextEditingController(text: '${b?.pomodoro?.focusMin ?? 25}');
     _break = TextEditingController(text: '${b?.pomodoro?.breakMin ?? 5}');
+    _newId = DateTime.now().microsecondsSinceEpoch.toRadixString(16);
 
     final days = {...?b?.days};
     if (days.isEmpty && widget.initialDay != null) days.add(widget.initialDay!);
@@ -42,6 +48,11 @@ class _BlockEditorScreenState extends ConsumerState<BlockEditorScreen> {
     _start = b?.startMin ?? 9 * 60;
     _end = b?.endMin ?? 10 * 60;
     _pomodoro = b?.pomodoro != null;
+
+    // Alarme déjà réglée pour ce bloc (s'il existe).
+    _existingAlarm = b == null ? null : ref.read(alarmsProvider)[b.id];
+    _alarmEnabled = _existingAlarm?.enabled ?? false;
+    _alarmOffset = _existingAlarm?.offsetMin ?? 0;
   }
 
   @override
@@ -69,6 +80,15 @@ class _BlockEditorScreenState extends ConsumerState<BlockEditorScreen> {
     });
   }
 
+  Future<void> _toggleAlarm(bool value) async {
+    if (value) {
+      // On demande les permissions au moment où l'alarme est activée.
+      await ref.read(alarmServiceProvider).requestPermissions();
+      if (!mounted) return;
+    }
+    setState(() => _alarmEnabled = value);
+  }
+
   Future<void> _save() async {
     final name = _name.text.trim();
     final focus = int.tryParse(_focus.text.trim()) ?? 0;
@@ -93,9 +113,10 @@ class _BlockEditorScreenState extends ConsumerState<BlockEditorScreen> {
         ? Pomodoro(focusMin: focus, breakMin: pause)
         : null;
     final existing = widget.block;
+    final blockId = existing?.id ?? _newId;
     final block = existing == null
         ? Block(
-            id: DateTime.now().microsecondsSinceEpoch.toRadixString(16),
+            id: blockId,
             days: _days,
             startMin: _start,
             endMin: _end,
@@ -112,6 +133,20 @@ class _BlockEditorScreenState extends ConsumerState<BlockEditorScreen> {
           );
 
     await ref.read(planningProvider.notifier).upsertBlock(block);
+
+    // Alarme : on n'écrit rien si elle n'a jamais existé et reste désactivée.
+    if (_alarmEnabled || _existingAlarm != null) {
+      await ref
+          .read(alarmsProvider.notifier)
+          .put(
+            AlarmSetting(
+              blockId: blockId,
+              enabled: _alarmEnabled,
+              offsetMin: _alarmOffset,
+            ),
+          );
+    }
+
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -217,6 +252,30 @@ class _BlockEditorScreenState extends ConsumerState<BlockEditorScreen> {
                 ),
               ],
             ),
+          const Divider(height: 32),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Alarme'),
+            subtitle: const Text('Chaque semaine, aux jours de ce bloc'),
+            value: _alarmEnabled,
+            onChanged: _toggleAlarm,
+          ),
+          if (_alarmEnabled) ...[
+            const SizedBox(height: 8),
+            const Text('Sonner'),
+            const SizedBox(height: 8),
+            SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 0, label: Text("À l'heure")),
+                ButtonSegment(value: 5, label: Text('5 min')),
+                ButtonSegment(value: 10, label: Text('10 min')),
+                ButtonSegment(value: 15, label: Text('15 min')),
+              ],
+              selected: {_alarmOffset},
+              onSelectionChanged: (selection) =>
+                  setState(() => _alarmOffset = selection.first),
+            ),
+          ],
           if (_error != null) ...[
             const SizedBox(height: 12),
             Text(

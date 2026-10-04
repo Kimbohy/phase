@@ -5,8 +5,12 @@ import '../../core/models/block.dart';
 import '../../core/utils/time_utils.dart';
 import '../../providers.dart';
 import '../alarms/alarm_sheet.dart';
+import '../planning/block_editor_screen.dart';
 
-/// Une ligne de la timeline du jour.
+/// Une ligne de bloc dans la timeline du jour.
+/// L'icône d'alarme n'apparaît que si une alarme est ACTIVE : elle sert d'indicateur,
+/// et un tap dessus permet de la modifier ou de la désactiver.
+/// Pour créer une alarme, on passe par l'éditeur de bloc (tap sur la ligne).
 class BlockTile extends ConsumerWidget {
   const BlockTile({super.key, required this.block, required this.isCurrent});
 
@@ -17,7 +21,18 @@ class BlockTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final pomodoro = block.pomodoro;
-    final hasAlarm = ref.watch(alarmsProvider)[block.id]?.enabled ?? false;
+    final alarm = ref.watch(alarmsProvider)[block.id];
+    final hasAlarm = alarm?.enabled ?? false;
+
+    final details = <String>[
+      '${formatMinutes(block.startMin)} – ${formatMinutes(block.endMin)}',
+      if (pomodoro != null)
+        'pomodoro ${pomodoro.focusMin}/${pomodoro.breakMin}',
+      if (hasAlarm)
+        alarm!.offsetMin == 0
+            ? 'alarme à l\'heure'
+            : 'alarme ${alarm.offsetMin} min avant',
+    ];
 
     return ListTile(
       selected: isCurrent,
@@ -29,15 +44,20 @@ class BlockTile extends ConsumerWidget {
           fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
         ),
       ),
-      subtitle: Text(
-        '${formatMinutes(block.startMin)} – ${formatMinutes(block.endMin)}'
-        '${pomodoro != null ? '  ·  ${pomodoro.focusMin}/${pomodoro.breakMin}' : ''}',
+      subtitle: Text(details.join('  ·  ')),
+      // Un tap sur la ligne ouvre l'éditeur (alarme comprise).
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => BlockEditorScreen(block: block),
+        ),
       ),
-      trailing: IconButton(
-        tooltip: 'Alarme',
-        icon: Icon(hasAlarm ? Icons.alarm_on : Icons.alarm_add),
-        onPressed: () => showAlarmSheet(context, block),
-      ),
+      trailing: hasAlarm
+          ? IconButton(
+              tooltip: 'Alarme active',
+              icon: const Icon(Icons.alarm_on),
+              onPressed: () => showAlarmSheet(context, block),
+            )
+          : null,
     );
   }
 }
