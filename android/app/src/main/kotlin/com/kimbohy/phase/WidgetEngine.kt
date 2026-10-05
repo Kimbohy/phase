@@ -30,6 +30,7 @@ data class WidgetState(
     val end: LocalDateTime? = null,
     val sub: WSub? = null,
     val nextTitle: String? = null,
+    val nextBlockId: String? = null,
     val nextStart: LocalDateTime? = null,
     val nextBoundary: LocalDateTime? = null,
 )
@@ -55,6 +56,7 @@ object WidgetEngine {
                 end = current.end,
                 sub = sub,
                 nextTitle = next?.block?.name,
+                nextBlockId = next?.block?.id,
                 nextStart = next?.start,
                 nextBoundary = sub?.endsAt ?: current.end,
             )
@@ -74,6 +76,7 @@ object WidgetEngine {
             progress = progress,
             end = next.start,
             nextTitle = next.block.name,
+            nextBlockId = next.block.id,
             nextStart = next.start,
             nextBoundary = next.start,
         )

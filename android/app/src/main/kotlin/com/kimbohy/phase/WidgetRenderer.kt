@@ -5,9 +5,11 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.SystemClock
 import android.view.View
 import android.widget.RemoteViews
+import org.json.JSONArray
 import java.time.Duration
 import java.time.LocalDateTime
 
@@ -17,6 +19,7 @@ import java.time.LocalDateTime
  */
 object WidgetRenderer {
     private const val KEY_PLANNING = "planning_json"
+    private const val KEY_ALARMS = "alarm_block_ids"
 
     fun updateAll(context: Context) {
         val manager = AppWidgetManager.getInstance(context)
@@ -38,14 +41,18 @@ object WidgetRenderer {
         val now = LocalDateTime.now()
         val state = WidgetEngine.compute(prefs.getString(KEY_PLANNING, null), now)
 
+        // Le bloc suivant a-t-il une alarme active ?
+        val alarmIds = readAlarmIds(prefs)
+        val nextHasAlarm = state.nextBlockId != null && state.nextBlockId in alarmIds
+
         for (id in bigIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_planning)
-            bind(context, views, state, now, compact = false)
+            bind(context, views, state, now, nextHasAlarm, compact = false)
             manager.updateAppWidget(id, views)
         }
         for (id in smallIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_planning_small)
-            bind(context, views, state, now, compact = true)
+            bind(context, views, state, now, nextHasAlarm, compact = true)
             manager.updateAppWidget(id, views)
         }
 
@@ -53,31 +60,39 @@ object WidgetRenderer {
         WidgetScheduler.scheduleNext(context, state, now)
     }
 
+    /** Liste des identifiants de blocs dont l'alarme est active (envoyée par l'app Flutter). */
+    private fun readAlarmIds(prefs: SharedPreferences): Set<String> {
+        val raw = prefs.getString(KEY_ALARMS, null) ?: return emptySet()
+        return try {
+            val array = JSONArray(raw)
+            (0 until array.length()).map { array.getString(it) }.toSet()
+        } catch (e: Exception) {
+            emptySet() // JSON illisible : on n'affiche simplement pas l'icône
+        }
+    }
+
     private fun bind(
         context: Context,
         views: RemoteViews,
         state: WidgetState,
         now: LocalDateTime,
+        nextHasAlarm: Boolean,
         compact: Boolean,
     ) {
         views.setTextViewText(R.id.title, WidgetLabels.title(state))
+        views.setTextViewText(R.id.next, WidgetLabels.nextLine(state, now))
 
-        val nextLine = WidgetLabels.nextLine(state, now)
+        // Petite icône d'alarme avant « Ensuite : … » si le bloc suivant a une alarme active.
+        views.setViewVisibility(R.id.next_alarm, if (nextHasAlarm) View.VISIBLE else View.GONE)
+
+        // Ligne pomodoro (« Focus 2/4 », « Pause · 3 min »).
+        // Dans le widget compact, elle est sur la même rangée que « Ensuite » : on ajoute un séparateur.
         val subText = WidgetLabels.subLine(state.sub, now)
-
-        if (compact) {
-            // Une seule ligne discrète : « Focus 2/4 · Ensuite : Ménage · 10:00 ».
-            val line = listOfNotNull(subText, nextLine.takeIf { it.isNotEmpty() })
-                .joinToString(" · ")
-            views.setTextViewText(R.id.next, line)
+        if (subText != null) {
+            views.setTextViewText(R.id.sub, if (compact) "$subText ·" else subText)
+            views.setViewVisibility(R.id.sub, View.VISIBLE)
         } else {
-            views.setTextViewText(R.id.next, nextLine)
-            if (subText != null) {
-                views.setTextViewText(R.id.sub, subText)
-                views.setViewVisibility(R.id.sub, View.VISIBLE)
-            } else {
-                views.setViewVisibility(R.id.sub, View.GONE)
-            }
+            views.setViewVisibility(R.id.sub, View.GONE)
         }
 
         // Jauge de progression du bloc (ou de l'intervalle libre).

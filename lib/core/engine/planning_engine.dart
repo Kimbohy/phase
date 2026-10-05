@@ -106,6 +106,18 @@ class PlanningEngine {
     return result;
   }
 
+  /// Garde les blocs et, parmi les intervalles libres, SEULEMENT celui en cours.
+  /// Sert au mode où les périodes libres ne sont pas affichées comme des lignes.
+  List<TimelineEntry> onlyCurrentFree(
+    List<TimelineEntry> timeline,
+    DateTime now,
+  ) {
+    return [
+      for (final entry in timeline)
+        if (!entry.isFree || entry.isCurrent(now)) entry,
+    ];
+  }
+
   /// Toutes les occurrences d'hier à dans 7 jours, triées par début.
   /// Hier est inclus pour les blocs qui passent minuit.
   List<Occurrence> _occurrences(Planning planning, DateTime now) {

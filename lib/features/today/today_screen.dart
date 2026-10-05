@@ -5,11 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/engine/phase_state.dart';
 import '../../core/engine/planning_engine.dart';
+import '../../core/models/planning.dart';
 import '../../core/utils/labels.dart';
 import '../../core/utils/time_utils.dart';
 import '../../providers.dart';
+import '../settings/settings_providers.dart';
 import '../settings/settings_screen.dart';
 import 'block_tile.dart';
+import 'free_line.dart';
 import 'free_tile.dart';
 
 /// Au plus 3 lignes sont visibles AVANT la ligne active : elle est donc
@@ -27,7 +30,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   final _scroll = ScrollController();
 
   /// Une clé par ligne (identifiée par son heure de début) pour retrouver
-  /// sa position à l'écran. Les clés doivent survivre aux reconstructions
+  /// sa position à l'écran. Elles doivent survivre aux reconstructions
   /// (l'écran est reconstruit chaque seconde), d'où ce dictionnaire.
   final _keys = <int, GlobalKey>{};
 
@@ -49,6 +52,17 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
   GlobalKey _keyFor(TimelineEntry entry) =>
       _keys.putIfAbsent(entry.start.millisecondsSinceEpoch, () => GlobalKey());
 
+  /// Les lignes à afficher : tout, ou (par défaut) les blocs + la période libre en cours.
+  List<TimelineEntry> _rowsFor(
+    Planning planning,
+    DateTime now,
+    bool showFreeRows,
+  ) {
+    const engine = PlanningEngine();
+    final timeline = engine.dayTimeline(planning, now);
+    return showFreeRows ? timeline : engine.onlyCurrentFree(timeline, now);
+  }
+
   /// Une ligne est « active » si l'heure est dedans ET si c'est bien la phase du moteur.
   bool _isCurrentEntry(TimelineEntry entry, PhaseState state, DateTime now) {
     if (!entry.isCurrent(now)) return false;
@@ -62,11 +76,12 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
     final now = DateTime.now();
     final state = ref.read(phaseProvider);
-    final timeline = const PlanningEngine().dayTimeline(
+    final rows = _rowsFor(
       ref.read(planningProvider),
       now,
+      ref.read(showFreeRowsProvider),
     );
-    final current = timeline.indexWhere((e) => _isCurrentEntry(e, state, now));
+    final current = rows.indexWhere((e) => _isCurrentEntry(e, state, now));
     if (current < 0) return;
 
     // L'étape active est dans les premières lignes : on affiche le haut de l'écran.
@@ -86,7 +101,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     }
 
     // Sinon : on place en haut la ligne située 3 lignes avant l'active.
-    final anchor = timeline[current - _maxRowsBeforeCurrent];
+    final anchor = rows[current - _maxRowsBeforeCurrent];
     final target = _keys[anchor.start.millisecondsSinceEpoch]?.currentContext;
     if (target == null) return;
     unawaited(
@@ -99,22 +114,34 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     );
   }
 
-  Widget _row(TimelineEntry entry, PhaseState state, DateTime now) {
+  Widget _row(
+    TimelineEntry entry,
+    PhaseState state,
+    DateTime now,
+    bool showFreeRows,
+  ) {
     final isCurrent = _isCurrentEntry(entry, state, now);
-    final tile = entry.isFree
-        ? FreeTile(
-            start: entry.start,
-            end: entry.end,
-            isCurrent: isCurrent,
-            progress: entry.progress(now),
-            now: now,
-          )
-        : BlockTile(block: entry.block!, isCurrent: isCurrent);
+
+    final Widget content;
+    if (!entry.isFree) {
+      content = BlockTile(block: entry.block!, isCurrent: isCurrent);
+    } else if (showFreeRows) {
+      content = FreeTile(
+        start: entry.start,
+        end: entry.end,
+        isCurrent: isCurrent,
+        progress: entry.progress(now),
+        now: now,
+      );
+    } else {
+      // Mode « trait » : seule la période libre EN COURS arrive jusqu'ici.
+      content = const FreeLine();
+    }
 
     return KeyedSubtree(
       key: _keyFor(entry),
       // Les lignes passées sont atténuées : on voit d'un coup d'œil où on en est.
-      child: Opacity(opacity: entry.end.isAfter(now) ? 1 : 0.5, child: tile),
+      child: Opacity(opacity: entry.end.isAfter(now) ? 1 : 0.5, child: content),
     );
   }
 
@@ -123,7 +150,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
     final planning = ref.watch(planningProvider);
     final state = ref.watch(phaseProvider);
     final now = ref.watch(clockProvider).value ?? DateTime.now();
-    final timeline = const PlanningEngine().dayTimeline(planning, now);
+    final showFreeRows = ref.watch(showFreeRowsProvider);
+    final rows = _rowsFor(planning, now, showFreeRows);
 
     return Scaffold(
       appBar: AppBar(
@@ -144,8 +172,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         ],
       ),
       // Une colonne dans un SingleChildScrollView : toutes les lignes existent,
-      // donc on peut toujours retrouver la position d'une ligne (ce que ne permet
-      // pas un ListView qui ne construit que les lignes visibles).
+      // donc on peut toujours retrouver la position d'une ligne.
       body: SingleChildScrollView(
         controller: _scroll,
         padding: const EdgeInsets.all(16),
@@ -159,7 +186,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
             if (planning.blocks.isEmpty)
               const Text('Aucun bloc. Importe un planning ou crée un bloc.')
             else
-              for (final entry in timeline) _row(entry, state, now),
+              for (final entry in rows) _row(entry, state, now, showFreeRows),
           ],
         ),
       ),

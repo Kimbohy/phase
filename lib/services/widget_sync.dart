@@ -3,22 +3,39 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:home_widget/home_widget.dart';
 
+import '../core/models/alarm_setting.dart';
 import '../core/models/planning.dart';
 
-/// Envoie le planning aux widgets Android et leur demande de se redessiner.
+/// Envoie le planning ET la liste des alarmes actives aux widgets Android,
+/// et leur demande de se redessiner.
 class WidgetSync {
   const WidgetSync._();
 
   static const _bigWidget = 'PlanningWidgetProvider';
   static const _smallWidget = 'PlanningWidgetSmallProvider';
-  static const _key = 'planning_json';
+  static const _planningKey = 'planning_json';
+  static const _alarmsKey = 'alarm_block_ids';
 
-  static Future<void> push(Planning planning) async {
+  static Future<void> push(
+    Planning planning,
+    Map<String, AlarmSetting> alarms,
+  ) async {
     try {
       await HomeWidget.saveWidgetData<String>(
-        _key,
+        _planningKey,
         jsonEncode(planning.toJson()),
       );
+
+      // Le widget n'a besoin que des identifiants des blocs dont l'alarme est active.
+      final activeAlarmIds = [
+        for (final alarm in alarms.values)
+          if (alarm.enabled) alarm.blockId,
+      ];
+      await HomeWidget.saveWidgetData<String>(
+        _alarmsKey,
+        jsonEncode(activeAlarmIds),
+      );
+
       // Une demande par type de widget : Android ne réveille un provider
       // que s'il a au moins un widget posé.
       await HomeWidget.updateWidget(androidName: _bigWidget);

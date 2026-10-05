@@ -39,7 +39,6 @@ class PlanningNotifier extends Notifier<Planning> {
   Future<void> _apply(Planning planning) async {
     state = planning;
     await ref.read(planningRepositoryProvider).save(planning);
-    await WidgetSync.push(planning);
     // Retire les alarmes des blocs disparus et replanifie le reste.
     await ref.read(alarmsProvider.notifier).syncWithPlanning(planning);
   }
@@ -155,6 +154,8 @@ class AlarmsNotifier extends Notifier<Map<String, AlarmSetting>> {
     await ref
         .read(alarmServiceProvider)
         .rescheduleAll(ref.read(planningProvider), state);
+    // Planning + alarmes partent ensemble vers les widgets.
+    await WidgetSync.push(ref.read(planningProvider), state);
   }
 }
 

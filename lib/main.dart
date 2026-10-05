@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'core/storage/planning_repository.dart';
+import 'core/storage/alarm_repository.dart';
 import 'providers.dart';
 import 'services/alarm_service.dart';
 import 'services/widget_sync.dart';
@@ -18,7 +19,12 @@ Future<void> main() async {
   final alarmService = AlarmService(FlutterLocalNotificationsPlugin());
   await alarmService.init();
 
-  unawaited(WidgetSync.push(PlanningRepository(prefs).load()));
+  unawaited(
+    WidgetSync.push(
+      PlanningRepository(prefs).load(),
+      AlarmRepository(prefs).load(),
+    ),
+  );
 
   runApp(
     ProviderScope(

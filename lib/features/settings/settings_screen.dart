@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:home_widget/home_widget.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/parser/planning_exporter.dart';
 import '../../providers.dart';
+import 'add_widget_sheet.dart';
+import 'settings_providers.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -16,6 +17,8 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final showFreeRows = ref.watch(showFreeRowsProvider);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Réglages')),
       body: ListView(
@@ -43,44 +46,24 @@ class SettingsScreen extends ConsumerWidget {
             ),
             onTap: () => Permission.ignoreBatteryOptimizations.request(),
           ),
+          // Une seule entrée pour tous les widgets : le choix se fait dans la feuille.
           ListTile(
             leading: const Icon(Icons.widgets),
-            title: const Text("Ajouter le widget à l'écran d'accueil"),
-            onTap: () async {
-              final supported =
-                  await HomeWidget.isRequestPinWidgetSupported() ?? false;
-              if (!context.mounted) return;
-              if (supported) {
-                await HomeWidget.requestPinWidget(
-                  androidName: 'PlanningWidgetProvider',
-                );
-              } else {
-                _message(
-                  context,
-                  'Appui long sur l\'écran d\'accueil → Widgets → Phase.',
-                );
-              }
-            },
+            title: const Text('Ajouter un widget'),
+            subtitle: const Text("Standard ou compact, à l'écran d'accueil"),
+            onTap: () => showAddWidgetSheet(context),
           ),
-          ListTile(
-            leading: const Icon(Icons.view_stream),
-            title: const Text("Ajouter le widget compact"),
-            subtitle: const Text('Moitié de hauteur (4x1)'),
-            onTap: () async {
-              final supported =
-                  await HomeWidget.isRequestPinWidgetSupported() ?? false;
-              if (!context.mounted) return;
-              if (supported) {
-                await HomeWidget.requestPinWidget(
-                  androidName: 'PlanningWidgetSmallProvider',
-                );
-              } else {
-                _message(
-                  context,
-                  "Appui long sur l'écran d'accueil → Widgets → Phase compact.",
-                );
-              }
-            },
+          const Divider(),
+          SwitchListTile(
+            secondary: const Icon(Icons.view_agenda_outlined),
+            title: const Text('Afficher les périodes libres'),
+            subtitle: const Text(
+              'Activé : chaque période libre est une ligne, comme un bloc. '
+              'Désactivé : un simple trait indique où tu en es pendant une période libre.',
+            ),
+            value: showFreeRows,
+            onChanged: (value) =>
+                ref.read(showFreeRowsProvider.notifier).set(value),
           ),
           const Divider(),
           ListTile(

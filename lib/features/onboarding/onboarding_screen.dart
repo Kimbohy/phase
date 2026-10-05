@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:home_widget/home_widget.dart';
+
+import '../settings/add_widget_sheet.dart';
+
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../providers.dart';
@@ -80,19 +82,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     icon: Icons.widgets,
                     title: 'Le widget',
                     text:
-                        'Ajoute le widget Phase à ton écran d\'accueil : '
-                        'appui long → Widgets → Phase.',
-                    actionLabel: 'Essayer de l\'ajouter',
-                    onAction: () async {
-                      final supported =
-                          await HomeWidget.isRequestPinWidgetSupported() ??
-                          false;
-                      if (supported) {
-                        await HomeWidget.requestPinWidget(
-                          androidName: 'PlanningWidgetProvider',
-                        );
-                      }
-                    },
+                        'Ajoute un widget Phase à ton écran d\'accueil : '
+                        'standard (4x2) ou compact (4x1).',
+                    actionLabel: 'Ajouter un widget',
+                    onAction: () => showAddWidgetSheet(context),
                   ),
                 ],
               ),
