@@ -17,7 +17,11 @@ Future<void> main() async {
   final prefs = await SharedPreferences.getInstance();
 
   final alarmService = AlarmService(FlutterLocalNotificationsPlugin());
-  await alarmService.init();
+  try {
+    await alarmService.init();
+  } on Object catch (e) {
+    debugPrint('Initialisation des alarmes impossible : $e');
+  }
 
   unawaited(
     WidgetSync.push(
